@@ -28,7 +28,7 @@ class DorisConnector(RDBMSConnector):
     ) -> "DorisConnector":
         """Create a new DorisConnector from host, port, user, pwd, db_name."""
         db_url: str = (
-            f"{cls.driver}://{quote(user)}:{urlquote(pwd)}@{host}:{str(port)}/{db_name}"
+            f"{cls.driver}://{quote(user)}:{urlquote(pwd)}@{host}:{str(port)}/{db_name}?charset=utf8"
         )
         return cast(DorisConnector, cls.from_uri(db_url, engine_args, **kwargs))
 
@@ -179,10 +179,13 @@ class DorisConnector(RDBMSConnector):
         """Get table simple info."""
         cursor = self.get_session().execute(
             text(
-                "SELECT concat(TABLE_NAME,'(',group_concat(COLUMN_NAME,','),');') "
-                "FROM information_schema.columns "
-                "where TABLE_SCHEMA=database() "
-                "GROUP BY TABLE_NAME"
+                """SELECT concat(col.TABLE_NAME,'(',group_concat(concat(col.COLUMN_NAME,' (',col.COLUMN_COMMENT,')'),', '),', and table comment: ',tab.TABLE_COMMENT,');')
+                   FROM information_schema.columns col
+                   INNER JOIN  information_schema.tables tab ON col.TABLE_NAME = tab.TABLE_NAME AND col.TABLE_SCHEMA = tab.TABLE_SCHEMA
+                   WHERE  col.TABLE_SCHEMA =database()
+                   GROUP BY col.TABLE_NAME, tab.TABLE_COMMENT
+                """
+
             )
         )
         results = cursor.fetchall()
